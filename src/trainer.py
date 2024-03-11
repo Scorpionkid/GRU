@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import logging
+
+from matplotlib import pyplot as plt
 from tqdm.auto import tqdm
 from torch.utils.data.dataloader import DataLoader
 from torch.nn import functional as F
@@ -38,6 +40,7 @@ class TrainerConfig:
 
 class Trainer:
     def __init__(self, model, train_dataset, test_dataset, config):
+        self.Loss_train = []
         self.model = model
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
@@ -54,7 +57,7 @@ class Trainer:
     def get_runName(self):
         rawModel = self.model.module if hasattr(self.model, "module") else self.model
         cfg = self.config
-        runName = (cfg.modelType) + str(cfg.seq_size) + '-' + str(cfg.hidden_size) + '-' + str(cfg.out_dim)
+        runName = (cfg.modelType) + str(cfg.seq_size) + '-' + str(cfg.hidden_size) + '-' + str(cfg.out_size)
 
         return runName
 
@@ -72,6 +75,7 @@ class Trainer:
         pbar = tqdm(enumerate(loader), total=len(loader),
                     bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}') if self.t else enumerate(loader)
 
+        ct = 0
         for it, (x, y) in pbar:
             x = x.to(self.device)
             y = y.to(self.device)
@@ -91,6 +95,7 @@ class Trainer:
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradNormClip)
                     self.config.optimizer.step()
+                    ct += 1
 
                     if config.lrDecay:
                         self.tokens += (y >= 0).sum()
@@ -117,7 +122,7 @@ class Trainer:
                     pbar.set_description(
                         f"epoch {epoch+1} progress {progress * 100.0:.2f}% iter {it + 1}: r2_score "
                         f"{totalR2s / (it + 1):.2f} loss {totalLoss / (it + 1):.4f} lr {lr:e}")
-
+        self.Loss_train.append(totalLoss / ct)
         return predicts, targets
 
     def train(self):
@@ -175,3 +180,24 @@ class Trainer:
 
         save_data2txt(predicts, 'src_trg_data/test_predict.txt')
         save_data2txt(targets, 'src_trg_data/test_target.txt')
+
+        n = 10000
+        tar = torch.cat(targets, dim=0).cpu().detach().numpy()
+        pre = torch.cat(predicts, dim=0).cpu().detach().numpy()
+        tar_x_v = tar[:n, 0]
+        tar_y_v = tar[:n, 1]
+        pre_x_v = pre[:n, 0]
+        pre_y_v = pre[:n, 1]
+
+        plt.subplot(1, 3, 1)
+        plt.plot(range(0, self.config.maxEpochs), self.Loss_train)
+        plt.title("Loss")
+        plt.subplot(1, 3, 2)
+        plt.plot(range(0, len(tar_x_v)), tar_x_v, label='tar_x_v')
+        plt.plot(range(0, len(pre_x_v)), pre_x_v, label='pre_x_v')
+        plt.legend()
+        plt.subplot(1, 3, 3)
+        plt.plot(range(0, len(tar_y_v)), tar_y_v, label='tar_y_v')
+        plt.plot(range(0, len(pre_y_v)), pre_x_v, label='pre_y_v')
+        plt.legend()
+        plt.show()
