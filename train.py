@@ -24,8 +24,8 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s
 
 # data
 modelType = "GRU"
-dataFile = "indy_20160624_03.mat"
-dataPath = "data/"
+dataFile = "indy_20160627_01.mat"
+dataPath = "../data/Makin/"
 dataFileCoding = "utf-8"
 # use 0 for char-level english and 1 for chinese. Only affects some Transormer hyperparameters
 dataFileType = 0
@@ -33,10 +33,10 @@ dataFileType = 0
 # hyperparameter
 epochSaveFrequency = 10    # every ten epoch
 epochSavePath = "pth/trained-"
-batchSize = 8
+batchSize = 32
 nEpoch = 50
 gap_num = 10    # the time slice
-seq_size = 64    # the length of the sequence
+seq_size = 128    # the length of the sequence
 input_size = 96
 hidden_size = 256
 out_size = 2   # the output dim
@@ -77,10 +77,8 @@ class Dataset(Dataset):
         if end_idx > len(self.x):
             # 对x和y进行填充以达到期望的序列长度
             pad_size_x = end_idx - len(self.x)
-            x_padded = np.pad(self.x[start_idx:len(self.x), :], ((0, pad_size_x), (0, 0)), mode='constant',
-                              constant_values=0)
-            y_padded = np.pad(self.y[start_idx:len(self.y), :], ((0, pad_size_x), (0, 0)), mode='constant',
-                              constant_values=0)
+            x_padded = np.pad(self.x[start_idx:len(self.x), :], ((0, pad_size_x), (0, 0)), mode='constant', constant_values=0)
+            y_padded = np.pad(self.y[start_idx:len(self.y), :], ((0, pad_size_x), (0, 0)), mode='constant', constant_values=0)
             x = torch.tensor(x_padded, dtype=torch.float32)
             y = torch.tensor(y_padded, dtype=torch.float32)
         else:
