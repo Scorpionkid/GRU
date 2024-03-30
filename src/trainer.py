@@ -3,8 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import logging
-
-from matplotlib import pyplot as plt
+import numpy as np
 from tqdm.auto import tqdm
 from torch.utils.data.dataloader import DataLoader
 from torch.nn import functional as F
@@ -39,14 +38,15 @@ class TrainerConfig:
 
 
 class Trainer:
-    def __init__(self, model, train_dataset, test_dataset, config):
+    def __init__(self, model, train_dataloader, test_dataloader, config):
         self.Loss_train = []
         self.r2_train = []
         self.Loss_test = []
         self.r2_test = []
+        self.results = {}
         self.model = model
-        self.train_dataset = train_dataset
-        self.test_dataset = test_dataset
+        self.train_dataloader = train_dataloader
+        self.test_dataloader = test_dataloader
         self.t = False
         self.config = config
         self.avg_test_loss = 0
@@ -58,7 +58,6 @@ class Trainer:
         self.model = torch.nn.DataParallel(self.model).to(self.device)
 
     def get_runName(self):
-        rawModel = self.model.module if hasattr(self.model, "module") else self.model
         cfg = self.config
         runName = (cfg.modelType) + str(cfg.seq_size) + '-' + str(cfg.hidden_size) + '-' + str(cfg.out_size)
 
@@ -71,22 +70,17 @@ class Trainer:
         totalR2s = 0
         self.t = split == 'train'
         model.train(self.t)
-        data = self.train_dataset
-        loader = DataLoader(data, shuffle=True, pin_memory=True, batch_size=config.batchSize,
-                            num_workers=config.numWorkers)
+        pbar = tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
+                    bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}') if self.t else enumerate(self.train_dataloader)
 
-        pbar = tqdm(enumerate(loader), total=len(loader),
-                    bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}') if self.t else enumerate(loader)
-
-        ct = 0
         for it, (x, y) in pbar:
             x = x.to(self.device)
             y = y.to(self.device)
 
             with torch.set_grad_enabled(self.t):
                 out = model(x)
-                predicts.append(out.view(-1, 2))
-                targets.append(y.view(-1, 2))
+                predicts.append(out.view(-1, 2).cpu().detach())
+                targets.append(y.view(-1, 2).cpu().detach())
                 # loss = loss.mean()
 
                 if self.t:
@@ -98,7 +92,6 @@ class Trainer:
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradNormClip)
                     self.config.optimizer.step()
-                    ct += 1
 
                     if config.lrDecay:
                         self.tokens += (y >= 0).sum()
@@ -125,8 +118,9 @@ class Trainer:
                     pbar.set_description(
                         f"epoch {epoch+1} progress {progress * 100.0:.2f}% iter {it + 1}: r2_score "
                         f"{totalR2s / (it + 1):.2f} loss {totalLoss / (it + 1):.4f} lr {lr:e}")
-        self.Loss_train.append(totalLoss / ct)
-        self.r2_train.append(totalR2s / ct)
+        it += 1
+        self.Loss_train.append(totalLoss / it)
+        self.r2_train.append(totalR2s / it)
         return predicts, targets
 
     def train(self):
@@ -134,91 +128,75 @@ class Trainer:
 
         for epoch in range(config.maxEpochs):
             predicts, targets = self.train_epoch('train', epoch, model, config)
-            # print(self.avg_train_loss / len(self.train_dataset))
-
-            if (config.epochSaveFrequency > 0 and epoch % config.epochSaveFrequency == 0) or (epoch ==
-                                                                                              config.maxEpochs - 1):
-                # DataParallel wrappers keep raw model object in .module
-                rawModel = self.model.module if hasattr(self.model, "module") else self.model
-                torch.save(rawModel, self.config.epochSavePath + str(epoch + 1) + '.pth')
-
-            # save the model predicts and targets every 10 epoch
-            # if (epoch + 1) % config.epochSaveFrequency == 0:
-            #     save_data_to_txt(predicts, targets, 'predict_character.txt', 'target_character.txt')
 
     def test(self):
         model, config = self.model, self.config
         model.eval()
-
         predicts = []
         targets = []
-        self.t = False
-        model.train(self.t)
-        data = self.test_dataset
         totalLoss = 0
         totalR2s = 0
-        loader = DataLoader(data, shuffle=True, pin_memory=True,
-                            batch_size=config.batchSize,
-                            num_workers=config.numWorkers)
+        loader = self.test_dataloader
+        pbar = tqdm(enumerate(loader), total=len(loader))
+        with torch.no_grad():
+            for ct, (data, target) in pbar:
+                data = data.to(self.device)
+                target = target.to(self.device)
+                out = model(data)  # forward the model
 
-        pbar = tqdm(enumerate(loader), total=len(loader),
-                    bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}') if self.t else enumerate(loader)
-        ct =  0
-        for it, (x, y) in pbar:
-            x = x.to(self.device)  # place data on the correct device
-            y = y.to(self.device)
+                predicts.append(out.detach().cpu().view(-1, 2))
+                targets.append(target.detach().cpu().view(-1, 2))
+
+                loss = self.config.criterion(out.view(-1, 2), target.view(-1, 2))
+                r2_s = r2_score(out.view(-1, 2), target.view(-1, 2))
+
+                totalLoss += loss.item()
+                totalR2s += r2_s.item()
+                self.Loss_test.append(loss.item())
+                self.r2_test.append(r2_s.item())
             ct += 1
+            MeanLoss = totalLoss / ct
+            MeanR2 = totalR2s / ct
+            print(f"Test Mean Loss: {MeanLoss:.4f}, R2_score: {MeanR2:.4f},  Num_iter: {ct}")
 
-            with torch.set_grad_enabled(self.t):
-                out = model(x)  # forward the model
-                predicts.append(out.view(-1, 2))
-                targets.append(y.view(-1, 2))
-                # loss = loss.mean()  # collapse all losses if they are scattered on multiple gpus
-                loss = self.config.criterion(out.view(-1, 2), y.view(-1, 2))
-                r2_s = r2_score(out.view(-1, 2), y.view(-1, 2))
-            totalLoss += loss.item()
-            totalR2s += r2_s.item()
-            self.Loss_test.append(loss.item())
-            self.r2_test.append(r2_s.item())
-            print(f"Batch Loss: {loss:.4f} R2_score: {r2_s:.4f}")
+        self.results['test_loss'] = MeanLoss
+        self.results['test_r2'] = MeanR2
+        self.results['train_loss'] = np.mean(self.Loss_train)
+        self.results['train_r2'] = np.mean(self.r2_train)
+        return self.results
+        # save_data2txt(predicts, 'src_trg_data/test_predict.txt')
+        # save_data2txt(targets, 'src_trg_data/test_target.txt')
 
-        MeanLoss = totalLoss / ct
-        MeanR2 = totalR2s / ct
-        print(f"Test Mean Loss: {totalLoss / ct:.4f}, R2_score: {totalR2s / ct:.4f},  Num_iter: {ct}")
-
-        save_data2txt(predicts, 'src_trg_data/test_predict.txt')
-        save_data2txt(targets, 'src_trg_data/test_target.txt')
-
-        n = 10000
-        tar = torch.cat(targets, dim=0).cpu().detach().numpy()
-        pre = torch.cat(predicts, dim=0).cpu().detach().numpy()
-        tar_x_v = tar[:n, 0]
-        tar_y_v = tar[:n, 1]
-        pre_x_v = pre[:n, 0]
-        pre_y_v = pre[:n, 1]
-
-        fig, axs = plt.subplots(3, 2, figsize=(10, 15))
-
-        axs[0,0].plot(range(0, self.config.maxEpochs), self.Loss_train)
-        axs[0,0].set_title("loss_train")
-        axs[0,1].plot(range(0, self.config.maxEpochs), self.r2_train)
-        axs[0,1].set_title("r2_train")
-
-        axs[1,0].plot(range(0, ct), self.Loss_test)
-        axs[1,0].set_title(f"Loss_test\nMean loss: {MeanLoss:.4f}")
-
-        axs[1,1].plot(range(0, ct), self.r2_test)
-        axs[1,1].set_title(f"r2_test\nMean r2s: {MeanR2:.4f}")
-
-
-        axs[2,0].plot(range(0, len(tar_x_v)), tar_x_v, label='tar_x_v')
-        axs[2,0].plot(range(0, len(pre_x_v)), pre_x_v, label='pre_x_v')
-        axs[2,0].legend()  # 调用特定轴的legend方法
-
-        axs[2,1].plot(range(0, len(tar_y_v)), tar_y_v, label='tar_y_v')
-        axs[2,1].plot(range(0, len(pre_y_v)), pre_y_v, label='pre_y_v')
-        axs[2,1].legend()  # 调用特定轴的legend方法
-
-        # 自动调整子图间距
-        plt.tight_layout()
-        plt.show()
+        # n = 10000
+        # tar = torch.cat(targets, dim=0).cpu().detach().numpy()
+        # pre = torch.cat(predicts, dim=0).cpu().detach().numpy()
+        # tar_x_v = tar[:n, 0]
+        # tar_y_v = tar[:n, 1]
+        # pre_x_v = pre[:n, 0]
+        # pre_y_v = pre[:n, 1]
+        #
+        # fig, axs = plt.subplots(3, 2, figsize=(10, 15))
+        #
+        # axs[0,0].plot(range(0, self.config.maxEpochs), self.Loss_train)
+        # axs[0,0].set_title("loss_train")
+        # axs[0,1].plot(range(0, self.config.maxEpochs), self.r2_train)
+        # axs[0,1].set_title("r2_train")
+        #
+        # axs[1,0].plot(range(0, ct), self.Loss_test)
+        # axs[1,0].set_title(f"Loss_test\nMean loss: {MeanLoss:.4f}")
+        #
+        # axs[1,1].plot(range(0, ct), self.r2_test)
+        # axs[1,1].set_title(f"r2_test\nMean r2s: {MeanR2:.4f}")
+        #
+        #
+        # axs[2,0].plot(range(0, len(tar_x_v)), tar_x_v, label='tar_x_v')
+        # axs[2,0].plot(range(0, len(pre_x_v)), pre_x_v, label='pre_x_v')
+        # axs[2,0].legend()  # 调用特定轴的legend方法
+        #
+        # axs[2,1].plot(range(0, len(tar_y_v)), tar_y_v, label='tar_y_v')
+        # axs[2,1].plot(range(0, len(pre_y_v)), pre_y_v, label='pre_y_v')
+        # axs[2,1].legend()  # 调用特定轴的legend方法
+        #
+        # # 自动调整子图间距
+        # plt.tight_layout()
+        # plt.show()
