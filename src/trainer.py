@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 class TrainerConfig:
     maxEpochs = 10
-    batchSize = 32
     learningRate = 4e-3
     betas = (0.9, 0.99)
     eps = 1e-8
@@ -40,7 +39,6 @@ class Trainer:
         self.model = model
         self.train_dataloader = train_dataloader
         self.test_dataloader = test_dataloader
-        self.t = False
         self.config = config
         self.avg_test_loss = 0
         self.tokens = 0     # counter used for learning rate decay
@@ -71,10 +69,10 @@ class Trainer:
             x = x.to(self.device)
             y = y.to(self.device)
 
-            with torch.set_grad_enabled(self.t):
+            with torch.set_grad_enabled(True):
                 out = model(x)
-                predicts.append(out.view(-1, 2))
-                targets.append(y.view(-1, 2))
+                # predicts.append(out.view(-1, 2))
+                # targets.append(y.view(-1, 2))
                 # loss = loss.mean()
 
                 model.zero_grad()
@@ -119,14 +117,14 @@ class Trainer:
             file.write(f"train average loss, train average r2 score\n")
 
         for epoch in range(config.maxEpochs):
-            predicts, targets = self.train_epoch(epoch, model, config)
+            self.train_epoch(epoch, model, config)
             # print(self.avg_train_loss / len(self.train_dataset))
 
-            if (config.epochSaveFrequency > 0 and epoch % config.epochSaveFrequency == 0) or (epoch ==
-                                                                                              config.maxEpochs - 1):
+            # if (config.epochSaveFrequency > 0 and epoch % config.epochSaveFrequency == 0) or (epoch ==
+            #                                                                                   config.maxEpochs - 1):
                 # DataParallel wrappers keep raw model object in .module
-                rawModel = self.model.module if hasattr(self.model, "module") else self.model
-                torch.save(rawModel, self.config.epochSavePath + str(epoch + 1) + '.pth')
+                # rawModel = self.model.module if hasattr(self.model, "module") else self.model
+                # torch.save(rawModel, self.config.epochSavePath + str(epoch + 1) + '.pth')
 
             # save the model predicts and targets every 10 epoch
             # if (epoch + 1) % config.epochSaveFrequency == 0:
@@ -139,7 +137,6 @@ class Trainer:
         with open("train.csv", "a", encoding="utf-8") as file:
             file.write(f"test loss, test r2 score\n")
 
-        self.t = False
         model.train(False)
 
         pbar = enumerate(self.test_dataloader)

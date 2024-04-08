@@ -24,7 +24,6 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s
 modelType = "GRU"
 dataFile = "Makin"
 dataPath = "../Makin/Makin_processed_npy/"
-excel_path = 'results/'
 dataFileCoding = "utf-8"
 # use 0 for char-level english and 1 for chinese. Only affects some Transormer hyperparameters
 dataFileType = 0
@@ -32,9 +31,8 @@ dataFileType = 0
 # hyperparameter
 epochSaveFrequency = 10    # every ten epoch
 epochSavePath = "pth/trained-"
-batchSize = 32
+batchSize = 128
 nEpoch = 50
-gap_num = 10    # the time slice
 seq_size = 256    # the length of the sequence
 input_size = 96
 hidden_size = 256
@@ -55,31 +53,48 @@ epochLengthFixed = 10000    # make every epoch very short, so we can see the tra
 print('loading data... ' + dataFile)
 
 
+# class Dataset(Dataset):
+#     def __init__(self, ctx_len, vocab_size, spike, target):
+#         print("loading data...", end=' ')
+#         self.ctxLen = ctx_len
+#         self.vocabSize = vocab_size
+#         self.x = spike
+#         self.y = target
+#
+#         # Gaussian normalization
+#         # self.x, self.y = gaussian_nomalization(x, y)
+#
+#         # min-max normalization
+#         # self.x, self.y = min_max_nomalization(x, y)
+#
+#     def __len__(self):
+#         return len(self.x)
+#
+#     def __getitem__(self, item):
+#         # i = np.random.randint(0, len(self.x) - self.ctxLen)
+#         i = item % (len(self.x) - self.ctxLen)
+#         x = torch.tensor(self.x[i:i + self.ctxLen, :], dtype=torch.float32)
+#         y = torch.tensor(self.y[i:i + self.ctxLen, :], dtype=torch.float32)
+#         # 用于测试的简化版本
+#         # x = torch.randn(self.ctxLen, 96)  # 假设数据形状为[ctxLen, 96]
+#         # y = torch.randn(self.ctxLen, 2)  # 假设标签形状为[ctxLen, 2]
+#         return x, y
+
+
 class Dataset(Dataset):
     def __init__(self, ctx_len, vocab_size, spike, target):
         print("loading data...", end=' ')
         self.ctxLen = ctx_len
         self.vocabSize = vocab_size
-        self.x = spike
-        self.y = target
-
-        # Gaussian normalization
-        # self.x, self.y = gaussian_nomalization(x, y)
-
-        # min-max normalization
-        # self.x, self.y = min_max_nomalization(x, y)
+        self.x, self.y = Reshape_ctxLen(spike, target, ctx_len)
 
     def __len__(self):
         return len(self.x)
 
-    def __getitem__(self, item):
-        # i = np.random.randint(0, len(self.x) - self.ctxLen)
-        i = item % (len(self.x) - self.ctxLen)
-        x = torch.tensor(self.x[i:i + self.ctxLen, :], dtype=torch.float32)
-        y = torch.tensor(self.y[i:i + self.ctxLen, :], dtype=torch.float32)
-        # 用于测试的简化版本
-        # x = torch.randn(self.ctxLen, 96)  # 假设数据形状为[ctxLen, 96]
-        # y = torch.randn(self.ctxLen, 2)  # 假设标签形状为[ctxLen, 2]
+    def __getitem__(self, idx):
+        x = self.x[idx]
+        y = self.y[idx]
+
         return x, y
 
 
@@ -96,7 +111,7 @@ trg_feature_dim = train_dataset.y.shape[1]
 # trainSize = int(0.8 * len(dataset))
 # train_Dataset, test_Dataset = split_dataset(ctxLen, out_dim, dataset, trainSize)
 train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=batchSize, pin_memory=True)
-test_dataloader = DataLoader(test_dataset, shuffle=False, batchSize=len(test_dataset), pin_memory=True)
+test_dataloader = DataLoader(test_dataset, shuffle=False, batch_size=len(test_dataset), pin_memory=True)
 
 # setting the model parameters
 gru_layer = nn.GRU(input_size, hidden_size, batch_first=True)
