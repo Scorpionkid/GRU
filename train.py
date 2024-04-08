@@ -22,8 +22,6 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s
 
 # data
 modelType = "GRU"
-dataFile = "indy_20160624_03.mat"
-dataPath = "data/"
 dataFile = "Makin"
 dataPath = "../Makin/Makin_processed_npy/"
 excel_path = 'results/'
@@ -35,8 +33,6 @@ dataFileType = 0
 epochSaveFrequency = 10    # every ten epoch
 epochSavePath = "pth/trained-"
 batchSize = 32
-nEpoch = 5
-batchSize = 128
 nEpoch = 50
 gap_num = 10    # the time slice
 seq_size = 256    # the length of the sequence
@@ -164,7 +160,6 @@ optimizer = optim.Adam(rawModel.parameters(), lr=4e-3)
 
 print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize,
         'seq_size', seq_size, 'hidden_size', hidden_size, 'num_layers', num_layers)
-
 
 tConf = TrainerConfig(modelType=modelType, maxEpochs=nEpoch, batchSize=batchSize, weightDecay=weightDecay,
                         learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
