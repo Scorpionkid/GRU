@@ -23,7 +23,7 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s
 # data
 modelType = "GRU"
 dataFile = "Makin"
-dataPath = "../Makin/Makin_processed_npy/"
+dataPath = "../Makin/Makin_origin_npy/"
 dataFileCoding = "utf-8"
 # use 0 for char-level english and 1 for chinese. Only affects some Transormer hyperparameters
 dataFileType = 0
@@ -142,8 +142,8 @@ trainer = Trainer(model, train_dataloader, test_dataloader, tConf)
 trainer.train()
 trainer.test()
 
-torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
-           + '.pth')
+# torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
+#            + '.pth')
 
 with open("train.csv", "a", encoding="utf-8") as file:
     file.write(dataPath + "batch size" + str(batchSize) + "epochs" + str(nEpoch) + "\n")

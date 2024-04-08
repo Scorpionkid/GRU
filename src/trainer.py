@@ -50,7 +50,7 @@ class Trainer:
 
     def get_runName(self):
         rawModel = self.model.module if hasattr(self.model, "module") else self.model
-        cfg = rawModel.config
+        cfg = self.config
         runName = (cfg.modelType) + str(cfg.seq_size) + '-' + str(cfg.hidden_size) + '-' + str(cfg.out_dim)
 
         return runName
