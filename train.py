@@ -4,17 +4,19 @@ import torch.optim as optim
 import logging
 import datetime
 import numpy as np
-from scipy.ndimage import gaussian_filter1d
 
+<<<<<<< Updated upstream
 from src.utils import set_seed, resample_data, spike_to_counts2
 from src.utils import load_mat, spike_to_counts1, save_data2txt, gaussian_nomalization
+=======
+from src.utils import *
+>>>>>>> Stashed changes
 from src.model import GRU
 from src.trainer import Trainer, TrainerConfig
 from torch.utils.data import Dataset, random_split, Subset
 import os
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
-
 
 
 set_seed(42)
@@ -24,8 +26,14 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s
 
 # data
 modelType = "GRU"
+<<<<<<< Updated upstream
 dataFile = "indy_20160624_03.mat"
 dataPath = "data/"
+=======
+dataFile = "Makin"
+dataPath = "../Makin/Makin_processed_npy/"
+excel_path = 'results/'
+>>>>>>> Stashed changes
 dataFileCoding = "utf-8"
 # use 0 for char-level english and 1 for chinese. Only affects some Transormer hyperparameters
 dataFileType = 0
@@ -33,10 +41,15 @@ dataFileType = 0
 # hyperparameter
 epochSaveFrequency = 10    # every ten epoch
 epochSavePath = "pth/trained-"
+<<<<<<< Updated upstream
 batchSize = 32
 nEpoch = 5
+=======
+batchSize = 128
+nEpoch = 50
+>>>>>>> Stashed changes
 gap_num = 10    # the time slice
-seq_size = 128    # the length of the sequence
+seq_size = 256    # the length of the sequence
 input_size = 96
 hidden_size = 256
 out_dim = 2   # the output dim
@@ -45,19 +58,27 @@ num_layers = 2
 # learning rate
 lrInit = 6e-4 if modelType == "GRU" else 4e3   # Transormer can use higher learning rate
 lrFinal = 4e-4
+numWorkers = 0
 
 betas = (0.9, 0.99)
 eps = 4e-9
 weightDecay = 0 if modelType == "GRU" else 0.01
 epochLengthFixed = 10000    # make every epoch very short, so we can see the training progress
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
 
 # loading data
 print('loading data... ' + dataFile)
 
 
 class Dataset(Dataset):
+<<<<<<< Updated upstream
     def __init__(self, ctx_len, vocab_size, spike, target):
+=======
+    def __init__(self, spike, target, seq_size, out_size):
+>>>>>>> Stashed changes
         print("loading data...", end=' ')
         self.ctxLen = ctx_len
         self.vocabSize = vocab_size
@@ -84,6 +105,7 @@ class Dataset(Dataset):
         # y = torch.randn(self.ctxLen, 2)  # 假设标签形状为[ctxLen, 2]
         return x, y
 
+<<<<<<< Updated upstream
 # class Dataset_list(Dataset):
 #     def __init__(self, ctx_len, vocab_size, x, y):
 #         self.ctxLen = ctx_len
@@ -178,3 +200,53 @@ trainer.test()
 
 torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
            + '.pth')
+=======
+
+with open("train.csv", "a", encoding="utf-8") as file:
+    file.write(dataPath + "batch size" + str(batchSize) + "epochs" + str(nEpoch) + "\n")
+
+spike_train, spike_test, target_train, target_test = AllDays_split(dataPath)
+train_dataset = Dataset(spike_train, target_train, seq_size, out_size)
+test_dataset = Dataset(spike_test, target_test, seq_size, out_size)
+
+train_dataloader = DataLoader(train_dataset, shuffle=True, pin_memory=True, batch_size=batchSize)
+test_dataloader = DataLoader(test_dataset, shuffle=False, pin_memory=True, batch_size=len(test_dataset))
+
+
+src_feature_dim = train_dataset.x.shape[-1]
+trg_feature_dim = train_dataset.y.shape[-1]
+
+
+# setting the model parameters
+gru_layer = nn.GRU(input_size, hidden_size, batch_first = True)
+model = GRU(input_size, hidden_size, out_size, gru_layer.weight_ih_l0, gru_layer.weight_hh_l0, gru_layer.bias_ih_l0, gru_layer.bias_hh_l0)
+rawModel = model.module if hasattr(model, "module") else model
+rawModel = rawModel.float()
+
+print("number of parameters: " + str(sum(p.numel() for p in model.parameters())) + "\n")
+
+# 定义损失函数和优化器
+criterion = nn.MSELoss()
+optimizer = optim.Adam(rawModel.parameters(), lr=4e-3)
+
+
+print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize,
+        'seq_size', seq_size, 'hidden_size', hidden_size, 'num_layers', num_layers)
+
+
+tConf = TrainerConfig(modelType=modelType, maxEpochs=nEpoch, batchSize=batchSize, weightDecay=weightDecay,
+                        learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
+                        warmupTokens=0, finalTokens=nEpoch*len(train_dataset)*seq_size, numWorkers=0,
+                        epochSaveFrequency=epochSaveFrequency, epochSavePath=epochSavePath,
+                        out_size=out_size, seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers,
+                        criterion=criterion, optimizer=optimizer)
+
+trainer = Trainer(model, train_dataloader, test_dataloader, tConf)
+trainer.train()
+result = trainer.test()
+
+# torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
+#            + '.pth')
+
+
+>>>>>>> Stashed changes

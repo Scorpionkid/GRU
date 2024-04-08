@@ -239,3 +239,104 @@ def min_max_nomalization(x, y):
 
     return x, y
 
+<<<<<<< Updated upstream
+=======
+def save_to_excel(results, excel_path, model_name, epoch, dimensions):
+    # 创建一个包含所需列的新行DataFrame
+    columns = ['filename', 'model', 'epoch'] + dimensions
+    df_rows = []
+
+    for result in results:
+        file_data = [result['file_name'], model_name, epoch] + [result.get(dim, '') for dim in dimensions]
+        df_rows.append(file_data)
+
+    df_results = pd.DataFrame(df_rows, columns=columns)
+
+    if not os.path.isfile(excel_path):
+        # 文件不存在，创建并写入列名和数据
+        with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+            df_results.to_excel(writer, sheet_name='Sheet1', index=False)
+    else:
+        # 文件存在，追加数据
+        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a', if_sheet_exists="overlay") as writer:
+            # 获取当前工作表的最后一行索引
+            last_row = writer.book.active.max_row
+            df_results.to_excel(writer, sheet_name='Sheet1', index=False, startrow=last_row + 1)
+
+def loadAllDays(data_path):
+    folderPath = data_path
+    name = ['spike/', 'target/']
+    spike = []
+    target = []
+
+    # load spike data
+    for filename in os.listdir(os.path.join(folderPath, name[0])):
+        file_path = os.path.join(folderPath, name[0], filename)
+        temp = np.load(file_path)
+        spike.append(temp)
+
+    # load target data
+    for filename in os.listdir(os.path.join(folderPath, name[1])):
+        file_path = os.path.join(folderPath, name[1], filename)
+        temp = np.load(file_path)
+        target.append(temp)
+
+    s = np.concatenate(spike, axis=0)
+    t = np.concatenate(target, axis=0)
+
+    return s, t
+
+
+def Reshape_ctxLen(spike, target, ctx_len):
+    spike = torch.tensor(spike, dtype=torch.float32)
+    target = torch.tensor(target, dtype=torch.float32)
+    length = len(spike)
+
+    if length % ctx_len:
+        batch = length // ctx_len + 1
+    else:
+        batch = length / ctx_len
+
+    short_len = batch * ctx_len - length
+
+    spike = F.pad(spike, (0, 0, 0, short_len), "constant", value=0)
+    target = F.pad(target, (0, 0, 0, short_len), "constant", value=0)
+
+    spike = spike.reshape(batch, ctx_len, -1)
+    target = target.reshape(batch, ctx_len, -1)
+
+    return spike, target
+
+
+def AllDays_split(data_path):
+    folderPath = data_path
+    name = ['spike9/', 'target9/']
+    spike_train = []
+    spike_test = []
+    target_train = []
+    target_test = []
+
+    # load spike data
+    for filename in os.listdir(os.path.join(folderPath, name[0])):
+        file_path = os.path.join(folderPath, name[0], filename)
+        temp = np.load(file_path)
+        spike_train.append(temp[:int(len(temp) * 0.8), :])
+        spike_test.append(temp[int(len(temp) * 0.8):, :])
+
+    # load target data
+    for filename in os.listdir(os.path.join(folderPath, name[1])):
+        file_path = os.path.join(folderPath, name[1], filename)
+        temp = np.load(file_path)
+        target_train.append(temp[:int(len(temp) * 0.8), :])
+        target_test.append(temp[int(len(temp) * 0.8):, :])
+
+    s_train = np.concatenate(spike_train, axis=0)
+    s_test = np.concatenate(spike_test, axis=0)
+    t_train = np.concatenate(target_train, axis=0)
+    t_test = np.concatenate(target_test, axis=0)
+
+    # s = np.concatenate((s_train, s_test), axis=0)
+    # t = np.concatenate((t_train, t_test), axis=0)
+
+    return s_train, s_test, t_train, t_test
+>>>>>>> Stashed changes

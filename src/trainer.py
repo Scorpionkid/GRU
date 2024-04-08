@@ -117,11 +117,20 @@ class Trainer:
                     pbar.set_description(
                         f"epoch {epoch+1} progress {progress * 100.0:.2f}% iter {it + 1}: r2_score "
                         f"{totalR2s / (it + 1):.2f} loss {totalLoss / (it + 1):.4f} lr {lr:e}")
+<<<<<<< Updated upstream
 
+=======
+        
+        with open("train.csv", "a", encoding="utf-8") as file:
+            file.write(f"{totalLoss / (it + 1):.4f}, {totalR2s / (it + 1):.4f}\n")
+        
+>>>>>>> Stashed changes
         return predicts, targets
 
     def train(self):
         model, config = self.model, self.config
+        with open("train.csv", "a", encoding="utf-8") as file:
+            file.write(f"train average loss, train average r2 score\n")
 
         for epoch in range(config.maxEpochs):
             predicts, targets = self.train_epoch('train', epoch, model, config)
@@ -140,6 +149,7 @@ class Trainer:
     def test(self):
         model, config = self.model, self.config
         model.eval()
+<<<<<<< Updated upstream
 
         predicts = []
         targets = []
@@ -170,6 +180,33 @@ class Trainer:
             totalLoss += loss.item()
             totalR2s += r2_s
             print(f"Batch Loss: {loss:.4f} R2_score: {r2_s:.4f}")
+=======
+        # predicts = []
+        # targets = []
+        with open("train.csv", "a", encoding="utf-8") as file:
+            file.write(f"test loss, test r2 score\n")
+
+        pbar = enumerate(self.test_dataloader)
+        with torch.no_grad():
+            for ct, (data, target) in pbar:
+                data = data.to(self.device)
+                target = target.to(self.device)
+                out = model(data)  # forward the model
+
+                # predicts.append(out.detach().cpu().view(-1, 2))
+                # targets.append(target.detach().cpu().view(-1, 2))
+
+                loss = self.config.criterion(out.view(-1, 2), target.view(-1, 2))
+                r2_s = r2_score(out.view(-1, 2), target.view(-1, 2))
+                
+                print(f"Test Mean Loss: {loss:.4f}, R2_score: {r2_s:.4f},  Num_iter: {ct}")
+                
+                with open("train.csv", "a", encoding="utf-8") as file:
+                    file.write(f"{loss:.4f}, {r2_s:.4f}\n")
+
+        # save_data2txt(predicts, 'src_trg_data/test_predict.txt')
+        # save_data2txt(targets, 'src_trg_data/test_target.txt')
+>>>>>>> Stashed changes
 
         print(f"Test Mean Loss: {totalLoss / ct:.4f}, R2_score: {totalR2s / ct:.4f},  Num_iter: {ct}")
 
