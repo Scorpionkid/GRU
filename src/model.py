@@ -69,7 +69,6 @@ class GRU(nn.Module):
         return out
 
 
-
 # 测试
 if __name__ == '__main__':
     bs, T, i_size, h_size = 2, 3, 4, 5

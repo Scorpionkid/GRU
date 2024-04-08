@@ -1,7 +1,9 @@
+import os
 import h5py
 import torch
 import random
 import numpy as np
+import pandas as pd
 from torch.nn import functional as F
 from scipy.interpolate import interp1d
 
@@ -239,8 +241,7 @@ def min_max_nomalization(x, y):
 
     return x, y
 
-<<<<<<< Updated upstream
-=======
+
 def save_to_excel(results, excel_path, model_name, epoch, dimensions):
     # 创建一个包含所需列的新行DataFrame
     columns = ['filename', 'model', 'epoch'] + dimensions
@@ -310,7 +311,7 @@ def Reshape_ctxLen(spike, target, ctx_len):
 
 def AllDays_split(data_path):
     folderPath = data_path
-    name = ['spike9/', 'target9/']
+    name = ['spike/', 'target/']
     spike_train = []
     spike_test = []
     target_train = []
@@ -339,4 +340,4 @@ def AllDays_split(data_path):
     # t = np.concatenate((t_train, t_test), axis=0)
 
     return s_train, s_test, t_train, t_test
->>>>>>> Stashed changes
+

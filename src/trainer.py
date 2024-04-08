@@ -117,15 +117,9 @@ class Trainer:
                     pbar.set_description(
                         f"epoch {epoch+1} progress {progress * 100.0:.2f}% iter {it + 1}: r2_score "
                         f"{totalR2s / (it + 1):.2f} loss {totalLoss / (it + 1):.4f} lr {lr:e}")
-<<<<<<< Updated upstream
-
-=======
         
         with open("train.csv", "a", encoding="utf-8") as file:
             file.write(f"{totalLoss / (it + 1):.4f}, {totalR2s / (it + 1):.4f}\n")
-        
->>>>>>> Stashed changes
-        return predicts, targets
 
     def train(self):
         model, config = self.model, self.config
@@ -149,7 +143,6 @@ class Trainer:
     def test(self):
         model, config = self.model, self.config
         model.eval()
-<<<<<<< Updated upstream
 
         predicts = []
         targets = []
@@ -164,7 +157,7 @@ class Trainer:
 
         pbar = tqdm(enumerate(loader), total=len(loader),
                     bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}') if self.t else enumerate(loader)
-        ct =  0
+        ct = 0
         for it, (x, y) in pbar:
             x = x.to(self.device)  # place data on the correct device
             y = y.to(self.device)
@@ -180,7 +173,6 @@ class Trainer:
             totalLoss += loss.item()
             totalR2s += r2_s
             print(f"Batch Loss: {loss:.4f} R2_score: {r2_s:.4f}")
-=======
         # predicts = []
         # targets = []
         with open("train.csv", "a", encoding="utf-8") as file:
@@ -206,9 +198,8 @@ class Trainer:
 
         # save_data2txt(predicts, 'src_trg_data/test_predict.txt')
         # save_data2txt(targets, 'src_trg_data/test_target.txt')
->>>>>>> Stashed changes
 
         print(f"Test Mean Loss: {totalLoss / ct:.4f}, R2_score: {totalR2s / ct:.4f},  Num_iter: {ct}")
 
-        save_data2txt(predicts, 'src_trg_data/test_predict.txt')
-        save_data2txt(targets, 'src_trg_data/test_target.txt')
+        # save_data2txt(predicts, 'src_trg_data/test_predict.txt')
+        # save_data2txt(targets, 'src_trg_data/test_target.txt')
