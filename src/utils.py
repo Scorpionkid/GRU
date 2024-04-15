@@ -264,6 +264,7 @@ def save_to_excel(results, excel_path, model_name, epoch, dimensions):
             last_row = writer.book.active.max_row
             df_results.to_excel(writer, sheet_name='Sheet1', index=False, startrow=last_row + 1)
 
+
 def loadAllDays(data_path):
     folderPath = data_path
     name = ['spike/', 'target/']
@@ -282,8 +283,8 @@ def loadAllDays(data_path):
         temp = np.load(file_path)
         target.append(temp)
 
-    s = np.concatenate(spike, axis=0)
-    t = np.concatenate(target, axis=0)
+    s = np.concatenate(spike[26:27], axis=0)
+    t = np.concatenate(target[26:27], axis=0)
 
     return s, t
 
@@ -300,11 +301,12 @@ def Reshape_ctxLen(spike, target, ctx_len):
 
     short_len = batch * ctx_len - length
 
-    spike = F.pad(spike, (0, 0, 0, short_len), "constant", value=0)
-    target = F.pad(target, (0, 0, 0, short_len), "constant", value=0)
+    if short_len:
+        spike = F.pad(spike, (0, 0, 0, short_len), "constant", value=0)
+        target = F.pad(target, (0, 0, 0, short_len), "constant", value=0)
 
-    spike = spike.reshape(batch, ctx_len, -1)
-    target = target.reshape(batch, ctx_len, -1)
+    spike = spike.reshape(int(batch), ctx_len, -1)
+    target = target.reshape(int(batch), ctx_len, -1)
 
     return spike, target
 
@@ -316,11 +318,14 @@ def AllDays_split(data_path):
     spike_test = []
     target_train = []
     target_test = []
+    section_name = []
 
     # load spike data
     for filename in os.listdir(os.path.join(folderPath, name[0])):
         file_path = os.path.join(folderPath, name[0], filename)
         temp = np.load(file_path)
+        basename = os.path.splitext(filename)[0]
+        section_name.append(basename)
         spike_train.append(temp[:int(len(temp) * 0.8), :])
         spike_test.append(temp[int(len(temp) * 0.8):, :])
 
@@ -331,13 +336,5 @@ def AllDays_split(data_path):
         target_train.append(temp[:int(len(temp) * 0.8), :])
         target_test.append(temp[int(len(temp) * 0.8):, :])
 
-    s_train = np.concatenate(spike_train, axis=0)
-    s_test = np.concatenate(spike_test, axis=0)
-    t_train = np.concatenate(target_train, axis=0)
-    t_test = np.concatenate(target_test, axis=0)
-
-    # s = np.concatenate((s_train, s_test), axis=0)
-    # t = np.concatenate((t_train, t_test), axis=0)
-
-    return s_train, s_test, t_train, t_test
+    return spike_train, spike_test, target_train, target_test, section_name
 

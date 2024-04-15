@@ -1,3 +1,4 @@
+import time
 import math
 import torch
 import torch.nn as nn
@@ -51,19 +52,16 @@ class Trainer:
     def get_runName(self):
         rawModel = self.model.module if hasattr(self.model, "module") else self.model
         cfg = self.config
-        runName = (cfg.modelType) + str(cfg.seq_size) + '-' + str(cfg.hidden_size) + '-' + str(cfg.out_dim)
+        runName = cfg.modelType + str(cfg.seq_size) + '-' + str(cfg.hidden_size) + '-' + str(cfg.out_dim)
 
         return runName
 
-    def train_epoch(self, epoch, model, config):
-        predicts = []
-        targets = []
+    def train_epoch(self, train_loader, epoch, model, config):
         totalLoss = 0
         totalR2s = 0
         model.train(True)
 
-        pbar = tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
-                    bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')
+        pbar = tqdm(enumerate(train_loader), total=len(train_loader), bar_format='{l_bar}{bar:10}{r_bar}')
 
         for it, (x, y) in pbar:
             x = x.to(self.device)
@@ -71,15 +69,12 @@ class Trainer:
 
             with torch.set_grad_enabled(True):
                 out = model(x)
-                # predicts.append(out.view(-1, 2))
-                # targets.append(y.view(-1, 2))
-                # loss = loss.mean()
 
                 model.zero_grad()
                 loss = self.config.criterion(out.view(-1, 2), y.view(-1, 2))
                 r2_s = r2_score(out.view(-1, 2), y.view(-1, 2))
                 totalLoss += loss.item()
-                totalR2s += r2_s
+                totalR2s += r2_s.item()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradNormClip)
                 self.config.optimizer.step()
@@ -108,59 +103,56 @@ class Trainer:
                         f"epoch {epoch+1} progress {progress * 100.0:.2f}% iter {it + 1}: r2_score "
                         f"{totalR2s / (it + 1):.2f} loss {totalLoss / (it + 1):.4f} lr {lr:e}")
         
-        with open("train.csv", "a", encoding="utf-8") as file:
-            file.write(f"{totalLoss / (it + 1):.4f}, {totalR2s / (it + 1):.4f}\n")
+        # with open(config.csv_file, "a", encoding="utf-8") as file:
+        #     file.write(f"{totalLoss / (it + 1):.4f}, {totalR2s / (it + 1):.4f}\n")
 
-    def train(self):
-        model, config = self.model, self.config
-        with open("train.csv", "a", encoding="utf-8") as file:
-            file.write(f"train average loss, train average r2 score\n")
+    def train(self, train_loader):
+        if train_loader:
+            model, config = self.model, self.config
+            # with open(config.csv_file, "a", encoding="utf-8") as file:
+            #     file.write(f"train average loss, train average r2 score\n")
 
-        for epoch in range(config.maxEpochs):
-            self.train_epoch(epoch, model, config)
-            # print(self.avg_train_loss / len(self.train_dataset))
+            for epoch in range(config.maxEpochs):
+                self.train_epoch(train_loader, epoch, model, config)
+                # print(self.avg_train_loss / len(self.train_dataset))
 
-            # if (config.epochSaveFrequency > 0 and epoch % config.epochSaveFrequency == 0) or (epoch ==
-            #                                                                                   config.maxEpochs - 1):
+                # if (config.epochSaveFrequency > 0 and epoch % config.epochSaveFrequency == 0) or
+                # (epoch == config.maxEpochs - 1):
                 # DataParallel wrappers keep raw model object in .module
                 # rawModel = self.model.module if hasattr(self.model, "module") else self.model
                 # torch.save(rawModel, self.config.epochSavePath + str(epoch + 1) + '.pth')
 
-            # save the model predicts and targets every 10 epoch
-            # if (epoch + 1) % config.epochSaveFrequency == 0:
-            #     save_data_to_txt(predicts, targets, 'predict_character.txt', 'target_character.txt')
+                # save the model predicts and targets every 10 epoch
+                # if (epoch + 1) % config.epochSaveFrequency == 0:
+                #     save_data_to_txt(predicts, targets, 'predict_character.txt', 'target_character.txt')
 
-    def test(self):
-        model, config = self.model, self.config
-        model.eval()
+    def test(self, test_loader, section_name):
+        if test_loader:
+            model, config = self.model, self.config
+            model.eval()
 
-        with open("train.csv", "a", encoding="utf-8") as file:
-            file.write(f"test loss, test r2 score\n")
+            model.train(False)
 
-        model.train(False)
+            start_time = time.time()
 
-        pbar = enumerate(self.test_dataloader)
-        with torch.no_grad():
-            for ct, (data, target) in pbar:
-                data = data.to(self.device)
-                target = target.to(self.device)
-                out = model(data)  # forward the model
+            with torch.no_grad():
+                for ct, (data, target) in enumerate(test_loader):
+                    data = data.to(self.device)
+                    target = target.to(self.device)
+                    out = model(data)  # forward the model
 
-                # predicts.append(out.detach().cpu().view(-1, 2))
-                # targets.append(target.detach().cpu().view(-1, 2))
+                    loss = self.config.criterion(out.view(-1, 2), target.view(-1, 2))
+                    r2_s = r2_score(out.view(-1, 2), target.view(-1, 2))
 
-                loss = self.config.criterion(out.view(-1, 2), target.view(-1, 2))
-                r2_s = r2_score(out.view(-1, 2), target.view(-1, 2))
-                
-                print(f"Test Mean Loss: {loss:.4f}, R2_score: {r2_s:.4}")
-                
-                with open("train.csv", "a", encoding="utf-8") as file:
-                    file.write(f"{loss:.4f}, {r2_s:.4f}\n")
+            end_time = time.time()
+            total_time = end_time - start_time
 
-        # save_data2txt(predicts, 'src_trg_data/test_predict.txt')
-        # save_data2txt(targets, 'src_trg_data/test_target.txt')
+            print(f"Test Mean Loss: {loss:.4f}, R2_score: {r2_s:.4}")
 
-        print(f"Test Mean Loss: {loss.item():.4f}, R2_score: {r2_s:.4f}")
+            with open(config.csv_file, "a", encoding="utf-8") as file:
+                file.write(f"{section_name}, {loss:.4f}, {r2_s:.4f}, {total_time}\n")
 
-        # save_data2txt(predicts, 'src_trg_data/test_predict.txt')
-        # save_data2txt(targets, 'src_trg_data/test_target.txt')
+            print(f"Test Mean Loss: {loss.item():.4f}, R2_score: {r2_s:.4f}")
+
+            # save_data2txt(predicts, 'src_trg_data/test_predict.txt')
+            # save_data2txt(targets, 'src_trg_data/test_target.txt')

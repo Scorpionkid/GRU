@@ -24,17 +24,17 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s
 modelType = "GRU"
 dataFile = "Makin"
 dataPath = "../Makin/Makin_origin_npy/"
-csv_file = "train.csv"
+csv_file = "result/train_finetune1-25.csv"
 dataFileCoding = "utf-8"
 # use 0 for char-level english and 1 for chinese. Only affects some Transormer hyperparameters
 dataFileType = 0
 
 # hyperparameter
 epochSaveFrequency = 10    # every ten epoch
-epochSavePath = "pth/trained-"
-batchSize = 128
+epochSavePath = "pth-trained-"
+batchSize = 32
 nEpoch = 50
-seq_size = 256    # the length of the sequence
+seq_size = 1024    # the length of the sequence
 input_size = 96
 hidden_size = 256
 out_size = 2   # the output dim
@@ -55,10 +55,10 @@ print('loading data... ' + dataFile)
 
 
 class Dataset(Dataset):
-    def __init__(self, ctx_len, vocab_size, spike, target):
-        print("loading data...", end=' ')
+    def __init__(self, data_path, ctx_len, vocab_size):
         self.ctxLen = ctx_len
         self.vocabSize = vocab_size
+        spike, target = loadAllDays(data_path)
         self.x, self.y = Reshape_ctxLen(spike, target, ctx_len)
 
     def __len__(self):
@@ -71,26 +71,19 @@ class Dataset(Dataset):
         return x, y
 
 
-spike_trainList, spike_testList, target_trainList, target_testList, section_name = AllDays_split(dataPath)
-spike_train = np.concatenate(spike_trainList, axis=0)
-target_train = np.concatenate(target_trainList, axis=0)
-train_dataset = Dataset(seq_size, out_size, spike_train, target_train)
-train_loader = DataLoader(train_dataset, shuffle=True, pin_memory=True, batch_size=batchSize, num_workers=numWorkers)
+dataset = Dataset(dataPath, seq_size, out_size)
 
-spike_test = np.concatenate(spike_testList, axis=0)
-target_test = np.concatenate(target_testList, axis=0)
-test_dataset = Dataset(seq_size, out_size, spike_testList, target_testList)
-test_loader = DataLoader(test_dataset, shuffle=False, pin_memory=True, batch_size=len(test_dataset),
-                         num_workers=numWorkers)
+src_feature_dim = dataset.x.shape[1]
+trg_feature_dim = dataset.y.shape[1]
 
-src_feature_dim = train_dataset.x.shape[1]
-trg_feature_dim = train_dataset.y.shape[1]
+train_dataloader = DataLoader(dataset, shuffle=True, batch_size=batchSize, pin_memory=True)
+test_dataloader = None
 
 print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize,
       'seq_size', seq_size, 'hidden_size', hidden_size, 'num_layers', num_layers)
 
 with open(csv_file, "a", encoding="utf-8") as file:
-    file.write(dataPath + "batch size" + str(batchSize) + "epochs" + str(nEpoch) + "\n")
+    file.write(dataPath + "batch size" + str(batchSize) + "epochs" + str(nEpoch) + "Sequence length " + str(seq_size) + "\n")
 
 # setting the model parameters
 gru_layer = nn.GRU(input_size, hidden_size, batch_first=True)
@@ -104,21 +97,16 @@ print("number of parameters: " + str(sum(p.numel() for p in model.parameters()))
 criterion = nn.MSELoss()
 optimizer = optim.Adam(rawModel.parameters(), lr=4e-3)
 
-
-print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize, 'seq_size', seq_size, 'hidden_size', hidden_size,
-      'num_layers', num_layers)
-
 tConf = TrainerConfig(modelType=modelType, maxEpochs=nEpoch, batchSize=batchSize, weightDecay=weightDecay,
-                        learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
-                        warmupTokens=0, finalTokens=nEpoch*len(train_dataset)*seq_size, numWorkers=0,
-                        epochSaveFrequency=epochSaveFrequency, epochSavePath=epochSavePath,
-                        out_size=out_size, seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers,
-                        criterion=criterion, optimizer=optimizer, csv_file=csv_file)
+                      learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
+                      warmupTokens=0, finalTokens=nEpoch*len(dataset)*seq_size, numWorkers=0,
+                      epochSaveFrequency=epochSaveFrequency, epochSavePath=epochSavePath, out_size=out_size,
+                      seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers, criterion=criterion,
+                      optimizer=optimizer, csv_file=csv_file, out_dim=out_size)
 
 trainer = Trainer(model, None, None, tConf)
-trainer.train()
-result = trainer.test()
+trainer.train(train_dataloader)
+# result = trainer.test()
 
-torch.save(model, epochSavePath + trainer.get_runName() + '-' +
-           datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S') + '.pth')
-
+torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
+           + '.pth')

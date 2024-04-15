@@ -24,17 +24,17 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s
 modelType = "GRU"
 dataFile = "Makin"
 dataPath = "../Makin/Makin_origin_npy/"
-csv_file = "train.csv"
+csv_file = "result/train_multiSectionTest.csv"
 dataFileCoding = "utf-8"
 # use 0 for char-level english and 1 for chinese. Only affects some Transormer hyperparameters
 dataFileType = 0
 
 # hyperparameter
 epochSaveFrequency = 10    # every ten epoch
-epochSavePath = "pth/trained-"
-batchSize = 128
+epochSavePath = "pth-trained-"
+batchSize = 32
 nEpoch = 50
-seq_size = 256    # the length of the sequence
+seq_size = 1024    # the length of the sequence
 input_size = 96
 hidden_size = 256
 out_size = 2   # the output dim
@@ -56,7 +56,6 @@ print('loading data... ' + dataFile)
 
 class Dataset(Dataset):
     def __init__(self, ctx_len, vocab_size, spike, target):
-        print("loading data...", end=' ')
         self.ctxLen = ctx_len
         self.vocabSize = vocab_size
         self.x, self.y = Reshape_ctxLen(spike, target, ctx_len)
@@ -79,7 +78,7 @@ train_loader = DataLoader(train_dataset, shuffle=True, pin_memory=True, batch_si
 
 spike_test = np.concatenate(spike_testList, axis=0)
 target_test = np.concatenate(target_testList, axis=0)
-test_dataset = Dataset(seq_size, out_size, spike_testList, target_testList)
+test_dataset = Dataset(seq_size, out_size, spike_test, target_test)
 test_loader = DataLoader(test_dataset, shuffle=False, pin_memory=True, batch_size=len(test_dataset),
                          num_workers=numWorkers)
 
@@ -109,16 +108,25 @@ print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize, 'seq_size', seq
       'num_layers', num_layers)
 
 tConf = TrainerConfig(modelType=modelType, maxEpochs=nEpoch, batchSize=batchSize, weightDecay=weightDecay,
-                        learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
-                        warmupTokens=0, finalTokens=nEpoch*len(train_dataset)*seq_size, numWorkers=0,
-                        epochSaveFrequency=epochSaveFrequency, epochSavePath=epochSavePath,
-                        out_size=out_size, seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers,
-                        criterion=criterion, optimizer=optimizer, csv_file=csv_file)
+                      learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps, warmupTokens=0,
+                      finalTokens=nEpoch*len(train_dataset)*seq_size, numWorkers=0,
+                      epochSaveFrequency=epochSaveFrequency, epochSavePath=epochSavePath, out_size=out_size,
+                      seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers, criterion=criterion,
+                      optimizer=optimizer, csv_file=csv_file, out_dim=out_size)
 
 trainer = Trainer(model, None, None, tConf)
-trainer.train()
-result = trainer.test()
 
-torch.save(model, epochSavePath + trainer.get_runName() + '-' +
-           datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S') + '.pth')
+with open(csv_file, "a", encoding="utf-8") as file:
+    file.write(f"section name, test loss, test r2 score, run time\n")
+trainer.train(train_loader)
+
+trainer.test(test_loader, "Test ALL")
+
+for i, (test_spike, test_target) in enumerate(zip(spike_testList, target_testList)):
+    testDataset = Dataset(seq_size, out_size, test_spike, test_target)
+    testLoader = DataLoader(testDataset, shuffle=False, pin_memory=True, batch_size=batchSize, num_workers=numWorkers)
+    trainer.test(testLoader, section_name[i])
+
+# torch.save(model, epochSavePath + trainer.get_runName() + '-' +
+#            datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S') + '.pth')
 
