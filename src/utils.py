@@ -339,3 +339,70 @@ def save_to_excel(results, excel_path, model_name, epoch, dimensions):
             # 获取当前工作表的最后一行索引
             last_row = writer.book.active.max_row
             df_results.to_excel(writer, sheet_name='Sheet1', index=False, startrow=last_row + 1)
+
+def loadAllDays(data_path):
+    folderPath = data_path
+    name = ['spike/', 'target/']
+    section_name = []
+    spike = []
+    target = []
+
+    # load spike data
+    for filename in os.listdir(os.path.join(folderPath, name[0])):
+        file_path = os.path.join(folderPath, name[0], filename)
+        base_name = os.path.splitext(filename)[0]
+        section_name.append(base_name)
+        temp = np.load(file_path)
+        spike.append(temp)
+
+    # load target data
+    for filename in os.listdir(os.path.join(folderPath, name[1])):
+        file_path = os.path.join(folderPath, name[1], filename)
+        temp = np.load(file_path)
+        target.append(temp)
+
+    s = spike[25:30]
+    t = target[25:30]
+    section_name = section_name[25:30]
+
+    # s = spike[0:25]
+    # t = target[0:25]
+    # section_name = section_name[0:25]
+
+    return s, t, section_name
+
+# 每天的数据划分训练集和测试集
+def AllDays_split(data_path):
+    folderPath = data_path
+    name = ['spike/', 'target/']
+    section_name = []
+    spike_train = []
+    spike_test = []
+    target_train = []
+    target_test = []
+
+    # load spike data
+    for filename in os.listdir(os.path.join(folderPath, name[0])):
+        base_name = os.path.splitext(filename)[0]
+        section_name.append(base_name)
+        file_path = os.path.join(folderPath, name[0], filename)
+        temp = np.load(file_path)
+        spike_train.append(temp[:int(len(temp) * 0.8), :])
+        spike_test.append(temp[int(len(temp) * 0.8):, :])
+
+    # load target data
+    for filename in os.listdir(os.path.join(folderPath, name[1])):
+        file_path = os.path.join(folderPath, name[1], filename)
+        temp = np.load(file_path)
+        target_train.append(temp[:int(len(temp) * 0.8), :])
+        target_test.append(temp[int(len(temp) * 0.8):, :])
+
+    # s_train = np.concatenate(spike_train, axis=0)
+    # s_test = np.concatenate(spike_test, axis=0)
+    # t_train = np.concatenate(target_train, axis=0)
+    # t_test = np.concatenate(target_test, axis=0)
+
+    # s = np.concatenate((s_train, s_test), axis=0)
+    # t = np.concatenate((t_train, t_test), axis=0)
+
+    return spike_train, spike_test, target_train, target_test, section_name

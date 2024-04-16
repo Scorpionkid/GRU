@@ -16,7 +16,6 @@ import os
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
 
-
 set_seed(42)
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S",
@@ -34,25 +33,25 @@ dataFileCoding = "utf-8"
 dataFileType = 0
 
 # hyperparameter
-epochSaveFrequency = 10    # every ten epoch
+epochSaveFrequency = 10  # every ten epoch
 epochSavePath = "pth/trained-"
 batchSize = 32
 nEpoch = 30
-gap_num = 10    # the time slice
-seq_size = 128    # the length of the sequence
+gap_num = 10  # the time slice
+seq_size = 128  # the length of the sequence
 input_size = 96
 hidden_size = 256
-out_size = 2   # the output dim
+out_size = 2  # the output dim
 num_layers = 2
 
 # learning rate
-lrInit = 6e-4 if modelType == "GRU" else 4e3   # Transormer can use higher learning rate
+lrInit = 6e-4 if modelType == "GRU" else 4e3  # Transormer can use higher learning rate
 lrFinal = 4e-4
 
 betas = (0.9, 0.99)
 eps = 4e-9
 weightDecay = 0 if modelType == "GRU" else 0.01
-epochLengthFixed = 10000    # make every epoch very short, so we can see the training progress
+epochLengthFixed = 10000  # make every epoch very short, so we can see the training progress
 dimensions = ['test_r2', 'test_loss', 'train_r2', 'train_loss']
 
 # loading data
@@ -79,14 +78,17 @@ class Dataset(Dataset):
         if end_idx > len(self.x):
             # 对x和y进行填充以达到期望的序列长度
             pad_size_x = end_idx - len(self.x)
-            x_padded = np.pad(self.x[start_idx:len(self.x), :], ((0, pad_size_x), (0, 0)), mode='constant', constant_values=0)
-            y_padded = np.pad(self.y[start_idx:len(self.y), :], ((0, pad_size_x), (0, 0)), mode='constant', constant_values=0)
+            x_padded = np.pad(self.x[start_idx:len(self.x), :], ((0, pad_size_x), (0, 0)), mode='constant',
+                              constant_values=0)
+            y_padded = np.pad(self.y[start_idx:len(self.y), :], ((0, pad_size_x), (0, 0)), mode='constant',
+                              constant_values=0)
             x = torch.tensor(x_padded, dtype=torch.float32)
             y = torch.tensor(y_padded, dtype=torch.float32)
         else:
             x = torch.tensor(self.x[start_idx:end_idx, :], dtype=torch.float32)
             y = torch.tensor(self.y[start_idx:end_idx, :], dtype=torch.float32)
         return x, y
+
 
 # spike, y, t = load_mat(dataPath+dataFile)
 # # y = resample_data(y, 4, 1)
@@ -110,8 +112,8 @@ results = []
 for spike_file, target_file in zip(spike_files, target_files):
     # 提取前缀名以确保对应文件正确
     prefix = spike_file.split('_processed_spike')[0]
-    # if prefix != 'indy_20160921_01':
-        # continue
+    if prefix != 'indy_20160921_01':
+        continue
 
     assert prefix in target_file, f"Mismatched prefix: {prefix} vs {target_file}"
 
@@ -121,27 +123,19 @@ for spike_file, target_file in zip(spike_files, target_files):
 
     dataset = Dataset(seq_size, out_size, spike, target)
 
-    # # 归一化
-    # dataset.x, dataset.y = gaussian_nomalization(dataset.x, dataset.y)
-    # # 平滑处理
-    # dataset.x = gaussian_filter1d(dataset.x, 3, axis=0)
-    # dataset.y = gaussian_filter1d(dataset.y, 3, axis=0)
-
     src_feature_dim = dataset.x.shape[1]
     trg_feature_dim = dataset.y.shape[1]
 
-
     # 按时间连续性划分数据集
-    # trainSize = int(0.8 * len(dataset))
-    # train_Dataset, test_Dataset = split_dataset(ctxLen, out_size, dataset, trainSize)
     train_Dataset = Subset(dataset, range(0, int(0.8 * len(dataset))))
     test_Dataset = Subset(dataset, range(int(0.8 * len(dataset)), len(dataset)))
     train_dataloader = DataLoader(train_Dataset, batch_size=batchSize, shuffle=True)
     test_dataloader = DataLoader(test_Dataset, batch_size=len(test_Dataset), shuffle=True)
 
     # setting the model parameters
-    gru_layer = nn.GRU(input_size, hidden_size, batch_first = True)
-    model = GRU(input_size, hidden_size, out_size, gru_layer.weight_ih_l0, gru_layer.weight_hh_l0, gru_layer.bias_ih_l0, gru_layer.bias_hh_l0)
+    gru_layer = nn.GRU(input_size, hidden_size, batch_first=True)
+    model = GRU(input_size, hidden_size, out_size, gru_layer.weight_ih_l0, gru_layer.weight_hh_l0, gru_layer.bias_ih_l0,
+                gru_layer.bias_hh_l0)
     total_params = sum(p.numel() for p in model.parameters())
     print(f'Total parameters: {total_params}')
     rawModel = model.module if hasattr(model, "module") else model
@@ -151,14 +145,12 @@ for spike_file, target_file in zip(spike_files, target_files):
     criterion = nn.MSELoss()
     optimizer = optim.Adam(rawModel.parameters(), lr=4e-3)
 
-
     print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize,
           'seq_size', seq_size, 'hidden_size', hidden_size, 'num_layers', num_layers)
 
-
     tConf = TrainerConfig(modelType=modelType, maxEpochs=nEpoch, batchSize=batchSize, weightDecay=weightDecay,
                           learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
-                          warmupTokens=0, finalTokens=nEpoch*len(train_Dataset)*seq_size, numWorkers=0,
+                          warmupTokens=0, finalTokens=nEpoch * len(train_Dataset) * seq_size, numWorkers=0,
                           epochSaveFrequency=epochSaveFrequency, epochSavePath=epochSavePath,
                           out_size=out_size, seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers,
                           criterion=criterion, optimizer=optimizer)
@@ -171,4 +163,5 @@ for spike_file, target_file in zip(spike_files, target_files):
     print(prefix + 'done')
     # torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
     #            + '.pth')
-save_to_excel(results, excel_path + os.path.basename(npy_folder_path) + '-' + str(nEpoch) + '-' + modelType + '-' + 'results.xlsx', modelType, nEpoch, dimensions)
+save_to_excel(results, excel_path + os.path.basename(npy_folder_path) + '-' + str(
+    nEpoch) + '-' + modelType + '-' + 'results.xlsx', modelType, nEpoch, dimensions)
