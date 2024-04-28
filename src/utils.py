@@ -396,12 +396,12 @@ def AllDays_split(data_path):
         target_train.append(temp[:int(len(temp) * 0.8), :])
         target_test.append(temp[int(len(temp) * 0.8):, :])
 
-    # s_train = np.concatenate(spike_train, axis=0)
-    # s_test = np.concatenate(spike_test, axis=0)
-    # t_train = np.concatenate(target_train, axis=0)
-    # t_test = np.concatenate(target_test, axis=0)
+    s_train = np.concatenate(spike_train, axis=0)
+    s_test = np.concatenate(spike_test, axis=0)
+    t_train = np.concatenate(target_train, axis=0)
+    t_test = np.concatenate(target_test, axis=0)
 
     # s = np.concatenate((s_train, s_test), axis=0)
     # t = np.concatenate((t_train, t_test), axis=0)
 
-    return spike_train, spike_test, target_train, target_test, section_name
+    return s_train, s_test, t_train, t_test

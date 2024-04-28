@@ -66,6 +66,7 @@ class GRU(nn.Module):
     def forward(self, src):
         N, T, C = src.shape
         h0 = torch.zeros(self.num_layers, N, self.hidden_size).to(self.device)
+        # h0 = torch.zeros(N, self.hidden_size).to(self.device)
         # out, h = self.gru_forward(src, h0)
         out, h = self.gru(src, h0)
         out = self.reg(out)

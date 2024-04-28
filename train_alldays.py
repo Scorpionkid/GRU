@@ -6,7 +6,7 @@ import datetime
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
-from src.utils import set_seed, resample_data, spike_to_counts2, save_to_excel, loadAllDays
+from src.utils import set_seed, resample_data, spike_to_counts2, save_to_excel, loadAllDays, AllDays_split
 from src.utils import load_mat, spike_to_counts1, save_data2txt, gaussian_nomalization
 from src.model import GRU
 from src.trainer import Trainer, TrainerConfig
@@ -119,16 +119,17 @@ prefix = 'Scaling_multisetion'
 #     assert prefix in target_file, f"Mismatched prefix: {prefix} vs {target_file}"
 
     # 加载spike和target的npy文件
-spike, target = loadAllDays(ori_npy_folder_path)
+s_train, s_test, t_train, t_test = AllDays_split(ori_npy_folder_path)
 
-dataset = Dataset(seq_size, out_size, spike, target)
+train_Dataset = Dataset(seq_size, out_size, s_train, t_train)
+test_Dataset = Dataset(seq_size, out_size, s_test, t_test)
 
-src_feature_dim = dataset.x.shape[1]
-trg_feature_dim = dataset.y.shape[1]
+src_feature_dim = train_Dataset.x.shape[1]
+trg_feature_dim = train_Dataset.y.shape[1]
 
 # 按时间连续性划分数据集
-train_Dataset = Subset(dataset, range(0, int(0.8 * len(dataset))))
-test_Dataset = Subset(dataset, range(int(0.8 * len(dataset)), len(dataset)))
+# train_Dataset = Subset(dataset, range(0, int(0.8 * len(dataset))))
+# test_Dataset = Subset(dataset, range(int(0.8 * len(dataset)), len(dataset)))
 train_dataloader = DataLoader(train_Dataset, batch_size=batchSize, shuffle=True)
 test_dataloader = DataLoader(test_Dataset, batch_size=len(test_Dataset), shuffle=True)
 for num_layer in num_layers:

@@ -36,13 +36,13 @@ dataFileType = 0
 epochSaveFrequency = 10  # every ten epoch
 epochSavePath = "pth/trained-"
 batchSize = 32
-nEpoch = 1
+nEpoch = 30
 gap_num = 10  # the time slice
 seq_size = 128  # the length of the sequence
 input_size = 96
 hidden_size = 256
 out_size = 2  # the output dim
-num_layers = 2
+num_layers = 1
 
 # learning rate
 lrInit = 6e-4 if modelType == "GRU" else 4e3  # Transormer can use higher learning rate
@@ -55,7 +55,7 @@ epochLengthFixed = 10000  # make every epoch very short, so we can see the train
 dimensions = ['test_r2', 'test_loss', 'train_r2', 'train_loss']
 
 # loading data
-print('loading data... ' + npy_folder_path)
+print('loading data... ' + ori_npy_folder_path)
 
 
 class Dataset(Dataset):
@@ -97,8 +97,8 @@ class Dataset(Dataset):
 # spike, target = spike_to_counts1(spike, y, t[0])
 
 # 获取spike和target子目录的绝对路径
-spike_subdir = os.path.join(npy_folder_path, "spike")
-target_subdir = os.path.join(npy_folder_path, "target")
+spike_subdir = os.path.join(ori_npy_folder_path, "spike")
+target_subdir = os.path.join(ori_npy_folder_path, "target")
 
 # 获取spike和target目录下所有的npy文件名
 spike_files = sorted([f for f in os.listdir(spike_subdir) if f.endswith('.npy')])
@@ -111,7 +111,7 @@ results = []
 # 遍历文件并对每一对spike和target文件进行处理
 for spike_file, target_file in zip(spike_files, target_files):
     # 提取前缀名以确保对应文件正确
-    prefix = spike_file.split('_processed_spike')[0]
+    prefix = spike_file.split('_spike')[0]
     if prefix != 'indy_20170127_03':
         continue
 
@@ -134,14 +134,14 @@ for spike_file, target_file in zip(spike_files, target_files):
 
     # setting the model parameters
     gru_layer = nn.GRU(input_size, hidden_size, batch_first=True)
-    model = GRU(input_size, hidden_size, out_size, gru_layer.weight_ih_l0, gru_layer.weight_hh_l0, gru_layer.bias_ih_l0,
+    model = GRU(input_size, hidden_size, out_size, num_layers, gru_layer, gru_layer.weight_ih_l0, gru_layer.weight_hh_l0, gru_layer.bias_ih_l0,
                 gru_layer.bias_hh_l0)
 
-    from thop import profile
-    input1 = torch.randn((1, 4, 128, 96))
-    flops, params = profile(model, inputs=input1.to('cuda'))
-    print('Macs = ' + str(flops / 1000 ** 3) + 'G')
-    print('Params = ' + str(params / 1000 ** 2) + 'M')
+    # from thop import profile
+    # input1 = torch.randn((1, 4, 128, 96))
+    # flops, params = profile(model, inputs=input1.to('cuda'))
+    # print('Macs = ' + str(flops / 1000 ** 3) + 'G')
+    # print('Params = ' + str(params / 1000 ** 2) + 'M')
 
     total_params = sum(p.numel() for p in model.parameters())
     print(f'Total parameters: {total_params}')
@@ -168,12 +168,13 @@ for spike_file, target_file in zip(spike_files, target_files):
     # test_Dataset = Dataset(seq_size, out_size, x_matrix, y_matrix)
     # test_dataloader = DataLoader(test_Dataset, batch_size=len(test_Dataset), shuffle=True)
     trainer = Trainer(model, train_dataloader, test_dataloader, tConf)
+    trainer.train()
     result = trainer.test()
-    result['file_name'] = prefix
+    result['name'] = prefix
     results.append(result)
     print(prefix + 'done')
     # torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
     #            + '.pth')
-save_to_excel(results, excel_path + os.path.basename(npy_folder_path) + '-' + str(
+save_to_excel(results, excel_path + os.path.basename(ori_npy_folder_path) + '-' + str(
     nEpoch) + '-' + modelType + '-' + 'results.xlsx', modelType, nEpoch, dimensions)
 
