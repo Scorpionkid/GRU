@@ -94,7 +94,7 @@ if __name__ == '__main__':
     import torch
     model = torch.load('pth/trained-finetune_day1~25-GRU1024-256-2-2024-04-16-02-13-31.pth')
     from thop import profile
-    input1 = torch.randn((1, 4, 128, 96))
+    input1 = torch.randn((128, 128, 96))
     flops, params = profile(model, inputs=input1.to('cuda'))
     print('Macs = ' + str(flops / 1000 ** 3) + 'G')
     print('Params = ' + str(params / 1000 ** 2) + 'M')

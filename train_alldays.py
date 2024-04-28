@@ -42,7 +42,7 @@ seq_size = 128  # the length of the sequence
 input_size = 96
 hidden_size = 256
 out_size = 2  # the output dim
-num_layers = np.arange(2, 11)
+num_layers = np.arange(2,11)
 
 # learning rate
 lrInit = 6e-4 if modelType == "GRU" else 4e3  # Transormer can use higher learning rate
@@ -148,29 +148,29 @@ for num_layer in num_layers:
 
     total_params = sum(p.numel() for p in model.parameters())
     print(f'Total parameters: {total_params}')
-    # 定义损失函数和优化器
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=4e-3)
-
-    print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize,
-          'seq_size', seq_size, 'hidden_size', hidden_size, 'num_layers', num_layer)
-
-    tConf = TrainerConfig(modelType=modelType, maxEpochs=nEpoch, batchSize=batchSize, weightDecay=weightDecay,
-                          learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
-                          warmupTokens=0, finalTokens=nEpoch * len(train_Dataset) * seq_size, numWorkers=0,
-                          epochSaveFrequency=epochSaveFrequency, epochSavePath=epochSavePath,
-                          out_size=out_size, seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers,
-                          criterion=criterion, optimizer=optimizer)
-
-    trainer = Trainer(model, train_dataloader, test_dataloader, tConf)
-    trainer.train()
-    result = trainer.test()
-    result['name'] = prefix
-    result['num_layers'] = num_layer
-    results.append(result)
-    print(prefix + 'done')
-        # torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
-        #            + '.pth')
-    save_to_excel(results, excel_path + prefix + '-' + str(
-        nEpoch) + '-' + modelType + '-' + 'results.xlsx', modelType, nEpoch, dimensions)
+    # # 定义损失函数和优化器
+    # criterion = nn.MSELoss()
+    # optimizer = optim.Adam(model.parameters(), lr=4e-3)
+    #
+    # print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize,
+    #       'seq_size', seq_size, 'hidden_size', hidden_size, 'num_layers', num_layer)
+    #
+    # tConf = TrainerConfig(modelType=modelType, maxEpochs=nEpoch, batchSize=batchSize, weightDecay=weightDecay,
+    #                       learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
+    #                       warmupTokens=0, finalTokens=nEpoch * len(train_Dataset) * seq_size, numWorkers=0,
+    #                       epochSaveFrequency=epochSaveFrequency, epochSavePath=epochSavePath,
+    #                       out_size=out_size, seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers,
+    #                       criterion=criterion, optimizer=optimizer)
+    #
+    # trainer = Trainer(model, train_dataloader, test_dataloader, tConf)
+    # trainer.train()
+    # result = trainer.test()
+    # result['name'] = prefix
+    # result['num_layers'] = num_layer
+    # results.append(result)
+    # print(prefix + 'done')
+    #     # torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
+    #     #            + '.pth')
+    # save_to_excel(results, excel_path + prefix + '-' + str(
+    #     nEpoch) + '-' + modelType + '-' + 'results.xlsx', modelType, nEpoch, dimensions)
 
