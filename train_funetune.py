@@ -34,7 +34,7 @@ dataFileType = 0
 epochSaveFrequency = 10  # every ten epoch
 epochSavePath = "pth/trained-"
 batchSize = 8
-nEpoch = 5
+nEpoch = 10
 nEpochs = [3, 5, 7, 10]
 modelLevel = "word"  # "character" or "word"
 seq_size = 128  # the length of the sequence
@@ -89,56 +89,74 @@ class Dataset(Dataset):
 spike, target, section_name = loadAllDays(ori_npy_folder_path)
 finetune_days = list(range(len(spike)))
 rawModel = torch.load('pth/trained-finetune_day1~25-GRU1024-256-2-2024-04-16-02-13-31.pth')
-for nEpoch in nEpochs:
-    for i in finetune_days:
-        results = []
-        print(section_name[i] + "\n")
-        prefix = section_name[i].split('_spike')[0]
 
-        dataset = Dataset(seq_size, out_size, spike[i], target[i])
-        trainLen = int(0.8 * len(dataset))
-        train_dataset = Subset(dataset, range(0, trainLen))
-        test_dataset = Subset(dataset, range(trainLen, len(dataset)))
-        test_dataloader = DataLoader(test_dataset, batch_size=len(test_dataset), shuffle=True)
+if __name__ == '__main__':
+    import torch
+    model = torch.load('pth/trained-finetune_day1~25-GRU1024-256-2-2024-04-16-02-13-31.pth')
+    from thop import profile
+    input1 = torch.randn((1, 4, 128, 96))
+    flops, params = profile(model, inputs=input1.to('cuda'))
+    print('Macs = ' + str(flops / 1000 ** 3) + 'G')
+    print('Params = ' + str(params / 1000 ** 2) + 'M')
 
-        src_feature_dim = dataset.x.shape[1]
-        trg_feature_dim = dataset.y.shape[1]
+results = []
+prefix = ''
+for i in finetune_days:
+    print(section_name[i] + "\n")
+    prefix = section_name[i].split('_spike')[0]
 
-        total_params = sum(p.numel() for p in rawModel.parameters())
-        print(f'Total parameters: {total_params}')
+    dataset = Dataset(seq_size, out_size, spike[i], target[i])
+    trainLen = int(0.8 * len(dataset))
+    train_dataset = Subset(dataset, range(0, trainLen))
+    test_dataset = Subset(dataset, range(trainLen, len(dataset)))
+    test_dataloader = DataLoader(test_dataset, batch_size=len(test_dataset), shuffle=True)
 
-        # 定义损失函数和优化器
-        criterion = nn.MSELoss()
-        optimizer = optim.Adam(rawModel.parameters(), lr=4e-3)
+    src_feature_dim = dataset.x.shape[1]
+    trg_feature_dim = dataset.y.shape[1]
 
-        print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize,
-              'seq_size', seq_size, 'hidden_size', hidden_size, 'num_layers', num_layers)
+    total_params = sum(p.numel() for p in rawModel.parameters())
+    print(f'Total parameters: {total_params}')
 
-        tConf = TrainerConfig(modelType=modelType, maxEpochs=nEpoch, batchSize=batchSize, weightDecay=weightDecay,
-                              learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
-                              warmupTokens=0, finalTokens=nEpoch * trainLen * seq_size, numWorkers=0,
-                              epochSaveFrequency=epochSaveFrequency, epochSavePath=epochSavePath,
-                              out_size=out_size, seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers,
-                              criterion=criterion, optimizer=optimizer)
+    # 定义损失函数和优化器
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(rawModel.parameters(), lr=4e-3)
 
-        # 单位秒
-        timestep = batchSize * seq_size
-        print(f'Timestep(s): {timestep / 100}')
+    print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize,
+          'seq_size', seq_size, 'hidden_size', hidden_size, 'num_layers', num_layers)
 
-        for step in range(batchSize, trainLen + batchSize, batchSize):
-            model = rawModel
-            finetune_dataset = Subset(train_dataset, range(0, min(step, trainLen)))
-            train_dataloader = DataLoader(finetune_dataset, batch_size=batchSize, shuffle=True)
-            trainer = Trainer(model, train_dataloader, test_dataloader, tConf)
-            trainer.train()
-            result = trainer.test()
-            result['file_name'] = prefix
-            result['timestep/s'] = (step * seq_size) / 100
-            results.append(result)
-            print(prefix + 'done')
+    tConf = TrainerConfig(modelType=modelType, maxEpochs=nEpoch, batchSize=batchSize, weightDecay=weightDecay,
+                          learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
+                          warmupTokens=0, finalTokens=nEpoch * trainLen * seq_size, numWorkers=0,
+                          epochSaveFrequency=epochSaveFrequency, epochSavePath=epochSavePath,
+                          out_size=out_size, seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers,
+                          criterion=criterion, optimizer=optimizer)
 
-        save_to_excel(results,
-                      excel_path + prefix + '-' +
-                      modelType + '-' + str(nEpoch) + '-' + 'finetuneResults.xlsx',
-                      modelType, nEpoch, dimensions)
+    # 单位秒
+    timestep = batchSize * seq_size
+    print(f'Timestep(s): {timestep / 100}')
+
+    # for step in range(batchSize, trainLen + batchSize, batchSize):
+    #     model = rawModel
+    #     finetune_dataset = Subset(train_dataset, range(0, min(step, trainLen)))
+    #     train_dataloader = DataLoader(finetune_dataset, batch_size=batchSize, shuffle=True)
+    #     trainer = Trainer(model, train_dataloader, test_dataloader, tConf)
+    #     trainer.train()
+    #     result = trainer.test()
+    #     result['file_name'] = prefix
+    #     result['timestep/s'] = (step * seq_size) / 100
+    #     results.append(result)
+    #     print(prefix + 'done')
+
+    # zero-shot
+    trainer = Trainer(rawModel, None, test_dataloader, tConf)
+    result = trainer.test()
+    result['file_name'] = prefix
+    prefix = 'zero-shot'
+    results.append(result)
+
+save_to_excel(results,
+              excel_path +
+              prefix + '-' +
+              modelType + '-' + str(nEpoch) + '-' + 'results.xlsx',
+              modelType, nEpoch, dimensions)
 

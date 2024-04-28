@@ -6,7 +6,7 @@ import datetime
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
-from src.utils import set_seed, resample_data, spike_to_counts2, save_to_excel
+from src.utils import set_seed, resample_data, spike_to_counts2, save_to_excel, loadAllDays
 from src.utils import load_mat, spike_to_counts1, save_data2txt, gaussian_nomalization
 from src.model import GRU
 from src.trainer import Trainer, TrainerConfig
@@ -26,7 +26,7 @@ modelType = "GRU"
 dataFile = "indy_20160627_01.mat"
 dataPath = "../data/Makin/"
 npy_folder_path = "../data/Makin_processed_npy"
-ori_npy_folder_path = "../data/Makin_origin_npy"
+ori_npy_folder_path = "../data/Makin_origin_npy/"
 excel_path = 'results/'
 dataFileCoding = "utf-8"
 # use 0 for char-level english and 1 for chinese. Only affects some Transormer hyperparameters
@@ -36,13 +36,13 @@ dataFileType = 0
 epochSaveFrequency = 10  # every ten epoch
 epochSavePath = "pth/trained-"
 batchSize = 32
-nEpoch = 1
+nEpoch = 20
 gap_num = 10  # the time slice
 seq_size = 128  # the length of the sequence
 input_size = 96
 hidden_size = 256
 out_size = 2  # the output dim
-num_layers = 2
+num_layers = np.arange(2, 11)
 
 # learning rate
 lrInit = 6e-4 if modelType == "GRU" else 4e3  # Transormer can use higher learning rate
@@ -52,10 +52,10 @@ betas = (0.9, 0.99)
 eps = 4e-9
 weightDecay = 0 if modelType == "GRU" else 0.01
 epochLengthFixed = 10000  # make every epoch very short, so we can see the training progress
-dimensions = ['test_r2', 'test_loss', 'train_r2', 'train_loss']
+dimensions = ['num_layers', 'test_r2', 'test_loss', 'train_r2', 'train_loss']
 
 # loading data
-print('loading data... ' + npy_folder_path)
+print('loading data... ' + ori_npy_folder_path)
 
 
 class Dataset(Dataset):
@@ -97,63 +97,62 @@ class Dataset(Dataset):
 # spike, target = spike_to_counts1(spike, y, t[0])
 
 # 获取spike和target子目录的绝对路径
-spike_subdir = os.path.join(npy_folder_path, "spike")
-target_subdir = os.path.join(npy_folder_path, "target")
-
-# 获取spike和target目录下所有的npy文件名
-spike_files = sorted([f for f in os.listdir(spike_subdir) if f.endswith('.npy')])
-target_files = sorted([f for f in os.listdir(target_subdir) if f.endswith('.npy')])
-
-# 确保两个目录下的文件一一对应
-assert len(spike_files) == len(target_files)
+# spike_subdir = os.path.join(npy_folder_path, "spike")
+# target_subdir = os.path.join(npy_folder_path, "target")
+#
+# # 获取spike和target目录下所有的npy文件名
+# spike_files = sorted([f for f in os.listdir(spike_subdir) if f.endswith('.npy')])
+# target_files = sorted([f for f in os.listdir(target_subdir) if f.endswith('.npy')])
+#
+# # 确保两个目录下的文件一一对应
+# assert len(spike_files) == len(target_files)
 results = []
-
-# 遍历文件并对每一对spike和target文件进行处理
-for spike_file, target_file in zip(spike_files, target_files):
-    # 提取前缀名以确保对应文件正确
-    prefix = spike_file.split('_processed_spike')[0]
-    if prefix != 'indy_20170127_03':
-        continue
-
-    assert prefix in target_file, f"Mismatched prefix: {prefix} vs {target_file}"
+#
+# # 遍历文件并对每一对spike和target文件进行处理
+# for spike_file, target_file in zip(spike_files, target_files):
+#     # 提取前缀名以确保对应文件正确
+#     prefix = spike_file.split('_processed_spike')[0]
+prefix = 'Scaling_multisetion'
+#     if prefix != 'indy_20170127_03':
+#         continue
+#
+#     assert prefix in target_file, f"Mismatched prefix: {prefix} vs {target_file}"
 
     # 加载spike和target的npy文件
-    spike = np.load(os.path.join(spike_subdir, spike_file))
-    target = np.load(os.path.join(target_subdir, target_file))
+spike, target = loadAllDays(ori_npy_folder_path)
 
-    dataset = Dataset(seq_size, out_size, spike, target)
+dataset = Dataset(seq_size, out_size, spike, target)
 
-    src_feature_dim = dataset.x.shape[1]
-    trg_feature_dim = dataset.y.shape[1]
+src_feature_dim = dataset.x.shape[1]
+trg_feature_dim = dataset.y.shape[1]
 
-    # 按时间连续性划分数据集
-    train_Dataset = Subset(dataset, range(0, int(0.8 * len(dataset))))
-    test_Dataset = Subset(dataset, range(int(0.8 * len(dataset)), len(dataset)))
-    train_dataloader = DataLoader(train_Dataset, batch_size=batchSize, shuffle=True)
-    test_dataloader = DataLoader(test_Dataset, batch_size=len(test_Dataset), shuffle=True)
-
+# 按时间连续性划分数据集
+train_Dataset = Subset(dataset, range(0, int(0.8 * len(dataset))))
+test_Dataset = Subset(dataset, range(int(0.8 * len(dataset)), len(dataset)))
+train_dataloader = DataLoader(train_Dataset, batch_size=batchSize, shuffle=True)
+test_dataloader = DataLoader(test_Dataset, batch_size=len(test_Dataset), shuffle=True)
+for num_layer in num_layers:
     # setting the model parameters
-    gru_layer = nn.GRU(input_size, hidden_size, batch_first=True)
-    model = GRU(input_size, hidden_size, out_size, gru_layer.weight_ih_l0, gru_layer.weight_hh_l0, gru_layer.bias_ih_l0,
+    gru_layer = nn.GRU(input_size, hidden_size, num_layer, batch_first=True)
+    model = GRU(input_size, hidden_size, out_size, num_layer, gru_layer, gru_layer.weight_ih_l0, gru_layer.weight_hh_l0, gru_layer.bias_ih_l0,
                 gru_layer.bias_hh_l0)
+    # model = gru_layer(input_size, hidden_size, num_layer, out_size)
 
-    from thop import profile
-    input1 = torch.randn((1, 4, 128, 96))
-    flops, params = profile(model, inputs=input1.to('cuda'))
-    print('Macs = ' + str(flops / 1000 ** 3) + 'G')
-    print('Params = ' + str(params / 1000 ** 2) + 'M')
+
+    # from thop import profile
+    # input1 = torch.randn((1, 4, 128, 96))
+    # flops, params = profile(model, inputs=input1.to('cuda'))
+    # print('Macs = ' + str(flops / 1000 ** 3) + 'G')
+    # print('Params = ' + str(params / 1000 ** 2) + 'M')
 
     total_params = sum(p.numel() for p in model.parameters())
     print(f'Total parameters: {total_params}')
-    rawModel = model.module if hasattr(model, "module") else model
-    rawModel = rawModel.float()
-
     # 定义损失函数和优化器
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(rawModel.parameters(), lr=4e-3)
+    optimizer = optim.Adam(model.parameters(), lr=4e-3)
 
     print('model', modelType, 'epoch', nEpoch, 'batchsz', batchSize,
-          'seq_size', seq_size, 'hidden_size', hidden_size, 'num_layers', num_layers)
+          'seq_size', seq_size, 'hidden_size', hidden_size, 'num_layers', num_layer)
 
     tConf = TrainerConfig(modelType=modelType, maxEpochs=nEpoch, batchSize=batchSize, weightDecay=weightDecay,
                           learningRate=lrInit, lrDecay=True, lrFinal=lrFinal, betas=betas, eps=eps,
@@ -162,18 +161,15 @@ for spike_file, target_file in zip(spike_files, target_files):
                           out_size=out_size, seq_size=seq_size, hidden_size=hidden_size, num_layers=num_layers,
                           criterion=criterion, optimizer=optimizer)
 
-    # trainer.train()
-    # x_matrix = np.random.randint(0, 6, size=(1024, 96))
-    # y_matrix = np.random.randint(0, 1, size=(1024, 2))
-    # test_Dataset = Dataset(seq_size, out_size, x_matrix, y_matrix)
-    # test_dataloader = DataLoader(test_Dataset, batch_size=len(test_Dataset), shuffle=True)
     trainer = Trainer(model, train_dataloader, test_dataloader, tConf)
+    trainer.train()
     result = trainer.test()
-    result['file_name'] = prefix
+    result['name'] = prefix
+    result['num_layers'] = num_layer
     results.append(result)
     print(prefix + 'done')
-    # torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
-    #            + '.pth')
-save_to_excel(results, excel_path + os.path.basename(npy_folder_path) + '-' + str(
-    nEpoch) + '-' + modelType + '-' + 'results.xlsx', modelType, nEpoch, dimensions)
+        # torch.save(model, epochSavePath + trainer.get_runName() + '-' + datetime.datetime.today().strftime('%Y-%m-%d-%H-%M-%S')
+        #            + '.pth')
+    save_to_excel(results, excel_path + prefix + '-' + str(
+        nEpoch) + '-' + modelType + '-' + 'results.xlsx', modelType, nEpoch, dimensions)
 

@@ -8,6 +8,7 @@ from tqdm.auto import tqdm
 from torch.utils.data.dataloader import DataLoader
 from torch.nn import functional as F
 from torcheval.metrics.functional import r2_score
+import time
 
 from .utils import save_data2txt
 
@@ -139,13 +140,20 @@ class Trainer:
         targets = []
         totalLoss = 0
         totalR2s = 0
+        # timeset = 1024
         loader = self.test_dataloader
         pbar = tqdm(enumerate(loader), total=len(loader))
         with torch.no_grad():
             for ct, (data, target) in pbar:
                 data = data.to(self.device)
                 target = target.to(self.device)
+
+                # start_time = time.time()
                 out = model(data)  # forward the model
+                # end_time = time.time()
+                # num = timeset / (end_time - start_time)
+                # print(f"Time: {end_time - start_time:.4f}")
+                # print(num)
 
                 predicts.append(out.detach().cpu().view(-1, 2))
                 targets.append(target.detach().cpu().view(-1, 2))
@@ -164,8 +172,10 @@ class Trainer:
 
         self.results['test_loss'] = MeanLoss
         self.results['test_r2'] = MeanR2
-        self.results['train_loss'] = np.mean(self.Loss_train)
-        self.results['train_r2'] = np.mean(self.r2_train)
+        loss_train = self.Loss_train[-1] if self.Loss_train else None
+        r2_train = self.r2_train[-1] if self.r2_train else None
+        self.results.update({k: v for k, v in {'train_loss': loss_train, 'train_r2': r2_train}.items() if v is not None})
+
         return self.results
         # save_data2txt(predicts, 'src_trg_data/test_predict.txt')
         # save_data2txt(targets, 'src_trg_data/test_target.txt')

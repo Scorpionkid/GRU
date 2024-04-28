@@ -320,11 +320,11 @@ def min_max_nomalization(x, y):
 
 def save_to_excel(results, excel_path, model_name, epoch, dimensions):
     # 创建一个包含所需列的新行DataFrame
-    columns = ['filename', 'model', 'epoch'] + dimensions
+    columns = ['name', 'model', 'epoch'] + dimensions
     df_rows = []
 
     for result in results:
-        file_data = [result['file_name'], model_name, epoch] + [result.get(dim, '') for dim in dimensions]
+        file_data = [result['name'], model_name, epoch] + [result.get(dim, '') for dim in dimensions]
         df_rows.append(file_data)
 
     df_results = pd.DataFrame(df_rows, columns=columns)
@@ -361,15 +361,14 @@ def loadAllDays(data_path):
         temp = np.load(file_path)
         target.append(temp)
 
-    s = spike[25:30]
-    t = target[25:30]
-    section_name = section_name[25:30]
+    s = np.concatenate(spike)
+    t = np.concatenate(target)
 
     # s = spike[0:25]
     # t = target[0:25]
     # section_name = section_name[0:25]
 
-    return s, t, section_name
+    return s, t
 
 # 每天的数据划分训练集和测试集
 def AllDays_split(data_path):

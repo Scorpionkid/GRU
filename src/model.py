@@ -4,24 +4,26 @@ from torch.nn import functional as F
 from torcheval.metrics.functional import r2_score
 # 逐步实现GRU网络
 class GRU(nn.Module):
-    def __init__(self, input_size, hidden_size, out_size, w_ih, w_hh, b_ih, b_hh, device = "cuda"):
+    def __init__(self, input_size, hidden_size, out_size, num_layers, gru_layer, w_ih, w_hh, b_ih, b_hh, device = "cuda"):
         super(GRU, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.out_size = out_size
+        self.num_layers = num_layers
+        self.gru = gru_layer
         self.w_ih = w_ih
         self.w_hh = w_hh
         self.b_ih = b_ih
         self.b_hh = b_hh
-        self.reg = nn.Linear(hidden_size, out_size)
+        self.reg = nn.Linear(hidden_size, out_size).to(device)
         self.device = device
 
 
     def gru_forward(self, input, initial_states):
         prev_h = initial_states.to(self.device)
+        input = input.to(self.device)
         bs, T, i_size = input.shape
         h_size = self.w_ih.shape[0] // 3
-
         # 它和w_ih.expand(bs, -1, -1)的区别是：expand不复制数据，tile是增加内存复制数据
         # 如果要维度改变后的变量要修改的话，要用tile，因为expand不会复制数据
         batch_w_ih = self.w_ih.unsqueeze(0).tile(bs, 1, 1).to(self.device)
@@ -41,13 +43,13 @@ class GRU(nn.Module):
 
             # 重置门
             r_t = torch.sigmoid(w_times_x[:, :h_size] + w_times_h_prev[:, :h_size] +
-                                self.b_ih[:h_size] + self.b_hh[:h_size])
+                                self.b_ih[:h_size].to(self.device) + self.b_hh[:h_size].to(self.device))
             # 更新门
             z_t = torch.sigmoid(w_times_x[:, h_size:2*h_size] + w_times_h_prev[:, h_size:2*h_size] +
-                                self.b_ih[h_size:2*h_size] + self.b_hh[h_size:2*h_size])
+                                self.b_ih[h_size:2*h_size].to(self.device) + self.b_hh[h_size:2*h_size].to(self.device))
             # 新的候选值
-            n_t = torch.tanh(w_times_x[:, 2*h_size:3*h_size] + self.b_ih[2*h_size:3*h_size] +
-                             r_t * (w_times_h_prev[:, 2*h_size:3*h_size] + self.b_hh[2*h_size:3*h_size]))
+            n_t = torch.tanh(w_times_x[:, 2*h_size:3*h_size] + self.b_ih[2*h_size:3*h_size].to(self.device) +
+                             r_t * (w_times_h_prev[:, 2*h_size:3*h_size] + self.b_hh[2*h_size:3*h_size].to(self.device)))
             # 更新隐藏状态
             prev_h = (1 - z_t) * n_t + z_t * prev_h
 
@@ -63,8 +65,9 @@ class GRU(nn.Module):
 
     def forward(self, src):
         N, T, C = src.shape
-        h0 = torch.zeros(N, self.hidden_size)
-        out, h = self.gru_forward(src, h0)
+        h0 = torch.zeros(self.num_layers, N, self.hidden_size).to(self.device)
+        # out, h = self.gru_forward(src, h0)
+        out, h = self.gru(src, h0)
         out = self.reg(out)
         return out
 
