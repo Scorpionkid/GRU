@@ -4,13 +4,13 @@ from torch.nn import functional as F
 from torcheval.metrics.functional import r2_score
 # 逐步实现GRU网络
 class GRU(nn.Module):
-    def __init__(self, input_size, hidden_size, out_size, num_layers, gru_layer, w_ih, w_hh, b_ih, b_hh, device = "cuda"):
+    def __init__(self, input_size, hidden_size, out_size, w_ih, w_hh, b_ih, b_hh, device = "cuda"):
         super(GRU, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.out_size = out_size
-        self.num_layers = num_layers
-        self.gru = gru_layer
+        # self.num_layers = num_layers
+        # self.gru = gru_layer
         self.w_ih = w_ih
         self.w_hh = w_hh
         self.b_ih = b_ih
@@ -65,10 +65,10 @@ class GRU(nn.Module):
 
     def forward(self, src):
         N, T, C = src.shape
-        h0 = torch.zeros(self.num_layers, N, self.hidden_size).to(self.device)
-        # h0 = torch.zeros(N, self.hidden_size).to(self.device)
-        # out, h = self.gru_forward(src, h0)
-        out, h = self.gru(src, h0)
+        # h0 = torch.zeros(self.num_layers, N, self.hidden_size).to(self.device)
+        h0 = torch.zeros(N, self.hidden_size).to(self.device)
+        out, h = self.gru_forward(src, h0)
+        # out, h = self.gru(src, h0)
         out = self.reg(out)
         return out
 

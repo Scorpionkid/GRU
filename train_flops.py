@@ -85,21 +85,15 @@ class Dataset(Dataset):
         return x, y
 
 
-# dividing the dataset into training set and testing dataset by a ratio of 82
-spike, target, section_name = loadAllDays(ori_npy_folder_path)
-finetune_days = list(range(len(spike)))
-rawModel = torch.load('pth/trained-finetune_day1~25-GRU1024-256-2-2024-04-16-02-13-31.pth')
-
-if __name__ == '__main__':
-    import torch, time
-    model = torch.load('pth/trained-finetune_day1~25-GRU1024-256-2-2024-04-16-02-13-31.pth')
-    from thop import profile
-    input1 = torch.randn((128, 128, 96))
-    start_time = time.time()
-    flops, params = profile(model, inputs=input1.to('cuda'))
-    end_time = time.time()
-    print(f"Time: {end_time - start_time:.4f}")
-    print('Macs = ' + str(flops / 1000 ** 3) + 'G')
-    print('Params = ' + str(params / 1000 ** 2) + 'M')
+import torch, time
+model = torch.load('pth/trained-finetune_day1~25-GRU1024-256-2-2024-04-16-02-13-31.pth')
+from thop import profile
+input1 = torch.randn(128, 128, 96).to('cuda')
+start_time = time.time()
+flops, params = profile(model, inputs=(input1,))
+end_time = time.time()
+print(f"Time: {end_time - start_time:.4f}")
+print('Macs = ' + str(flops / 1000 ** 3) + 'G')
+print('Params = ' + str(params / 1000 ** 2) + 'M')
 
 
